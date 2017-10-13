@@ -2,7 +2,7 @@
 import asyncio
 import logging
 
-from aiohttp import hdrs
+from aiohttp import hdrs, client_exceptions
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.components.alexa import smart_home
@@ -24,12 +24,16 @@ class CloudIoT:
         self.client = None
         self._remove_hass_stop_listener = None
         self.is_connected = False
+        self.close_requested = False
+        self.tries = 0
 
     @asyncio.coroutine
     def connect(self):
         """Connect to the IoT broker."""
         if self.is_connected:
             raise Exception('Cannot connect while already connected')
+
+        self.close_requested = False
 
         hass = self.cloud.hass
 
@@ -39,11 +43,23 @@ class CloudIoT:
         headers = {
             hdrs.AUTHORIZATION: 'Bearer {}'.format(self.cloud.access_token)
         }
-        self.client = client = yield from session.ws_connect(
-            'ws://localhost:8002/websocket', headers=headers)
-        self.is_connected = True
+
+        @asyncio.coroutine
+        def _handle_hass_stop(event):
+            """Handle Home Assistant shutting down."""
+            yield from self.disconnect()
+
+        self._remove_hass_stop_listener = hass.bus.async_listen_once(
+            EVENT_HOMEASSISTANT_STOP, _handle_hass_stop)
+
+        client = None
 
         try:
+            self.client = client = yield from session.ws_connect(
+                'ws://localhost:8002/websocket', headers=headers)
+            self.is_connected = True
+            self.tries = 0
+
             msg = yield from client.receive_json()
 
             while msg:
@@ -65,29 +81,49 @@ class CloudIoT:
 
                 msg = yield from client.receive_json()
 
+        except client_exceptions.WSServerHandshakeError as err:
+            if err.code == 401:
+                _LOGGER.warning('Unable to connect: invalid auth')
+                self.close_requested = True
+                # TODO notify user?
+
+        except client_exceptions.ClientError as err:
+            _LOGGER.warning('Unable to connect: %s', err)
+
         except ValueError as err:
             print("RECEIVED INVALID JSON", err.doc)
 
+        except TypeError as err:
+            if client.closed:
+                _LOGGER.warning('Disconnected from server.')
+            else:
+                _LOGGER.warning('Unknown error: %s', err)
+
         except Exception:
-            _LOGGER.exception('Something happened, connection closed?')
-            # TODO RECONNECT
+            if not self.close_requested:
+                _LOGGER.exception('Something happened, connection closed?')
 
         finally:
-            self.is_connected = False
-            self.client = None
-            yield from client.close()
+            self._remove_hass_stop_listener()
+            self._remove_hass_stop_listener = None
+            if client is not None:
+                self.client = None
+                yield from client.close()
+                self.is_connected = False
 
-        @asyncio.coroutine
-        def _handle_hass_stop(event):
-            """Handle Home Assistant shutting down."""
-            yield from client.close()
+            if not self.close_requested:
+                self.tries += 1
 
-        self._remove_hass_stop_listener = hass.bus.listen_once(
-            EVENT_HOMEASSISTANT_STOP, _handle_hass_stop)
+                # Sleep 0, 5, 10, 15 … up to 30 seconds between retries
+                yield from asyncio.sleep(
+                    min(30, (self.tries - 1) * 5), loop=hass.loop)
+
+                hass.async_add_job(self.connect())
 
     @asyncio.coroutine
     def disconnect(self):
         """Disconnect the client."""
+        self.close_requested = True
         yield from self.client.close()
 
 

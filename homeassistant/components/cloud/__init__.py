@@ -6,6 +6,8 @@ import os
 
 import voluptuous as vol
 
+from homeassistant.const import EVENT_HOMEASSISTANT_START
+
 from . import http_api, iot
 from .const import CONFIG_DIR, DOMAIN, SERVERS
 
@@ -41,7 +43,14 @@ def async_setup(hass, config):
         kwargs = {CONF_MODE: DEFAULT_MODE}
 
     cloud = hass.data[DOMAIN] = Cloud(hass, **kwargs)
-    yield from cloud.initialize()
+
+    @asyncio.coroutine
+    def init_cloud(event):
+        """Initialize connection."""
+        yield from cloud.initialize()
+
+    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_START, init_cloud)
+
     yield from http_api.async_setup(hass)
     return True
 
@@ -107,7 +116,7 @@ class Cloud:
         yield from self.hass.async_add_job(load_config)
 
         if self.email is not None:
-            self.hass.async_add_job(self.iot.connect())
+            yield from self.iot.connect()
 
     def path(self, *parts):
         """Get config path inside cloud dir."""
