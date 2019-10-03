@@ -143,10 +143,13 @@ async def async_api_turn_off(hass, config, directive, context):
 async def async_api_set_brightness(hass, config, directive, context):
     """Process a set brightness request."""
     entity = directive.entity
+    domain = entity.domain
+    if domain == group.DOMAIN:
+        domain = ha.DOMAIN
     brightness = int(directive.payload["brightness"])
 
     await hass.services.async_call(
-        entity.domain,
+        domain,
         SERVICE_TURN_ON,
         {ATTR_ENTITY_ID: entity.entity_id, light.ATTR_BRIGHTNESS_PCT: brightness},
         blocking=False,
@@ -160,6 +163,9 @@ async def async_api_set_brightness(hass, config, directive, context):
 async def async_api_adjust_brightness(hass, config, directive, context):
     """Process an adjust brightness request."""
     entity = directive.entity
+    domain = entity.domain
+    if domain == group.DOMAIN:
+        domain = ha.DOMAIN
     brightness_delta = int(directive.payload["brightnessDelta"])
 
     # read current state
@@ -173,7 +179,7 @@ async def async_api_adjust_brightness(hass, config, directive, context):
     # set brightness
     brightness = max(0, brightness_delta + current)
     await hass.services.async_call(
-        entity.domain,
+        domain,
         SERVICE_TURN_ON,
         {ATTR_ENTITY_ID: entity.entity_id, light.ATTR_BRIGHTNESS_PCT: brightness},
         blocking=False,
@@ -187,6 +193,9 @@ async def async_api_adjust_brightness(hass, config, directive, context):
 async def async_api_set_color(hass, config, directive, context):
     """Process a set color request."""
     entity = directive.entity
+    domain = entity.domain
+    if domain == group.DOMAIN:
+        domain = ha.DOMAIN
     rgb = color_util.color_hsb_to_RGB(
         float(directive.payload["color"]["hue"]),
         float(directive.payload["color"]["saturation"]),
@@ -194,7 +203,7 @@ async def async_api_set_color(hass, config, directive, context):
     )
 
     await hass.services.async_call(
-        entity.domain,
+        domain,
         SERVICE_TURN_ON,
         {ATTR_ENTITY_ID: entity.entity_id, light.ATTR_RGB_COLOR: rgb},
         blocking=False,
@@ -208,10 +217,13 @@ async def async_api_set_color(hass, config, directive, context):
 async def async_api_set_color_temperature(hass, config, directive, context):
     """Process a set color temperature request."""
     entity = directive.entity
+    domain = entity.domain
+    if domain == group.DOMAIN:
+        domain = ha.DOMAIN
     kelvin = int(directive.payload["colorTemperatureInKelvin"])
 
     await hass.services.async_call(
-        entity.domain,
+        domain,
         SERVICE_TURN_ON,
         {ATTR_ENTITY_ID: entity.entity_id, light.ATTR_KELVIN: kelvin},
         blocking=False,
@@ -225,12 +237,15 @@ async def async_api_set_color_temperature(hass, config, directive, context):
 async def async_api_decrease_color_temp(hass, config, directive, context):
     """Process a decrease color temperature request."""
     entity = directive.entity
+    domain = entity.domain
+    if domain == group.DOMAIN:
+        domain = ha.DOMAIN
     current = int(entity.attributes.get(light.ATTR_COLOR_TEMP))
     max_mireds = int(entity.attributes.get(light.ATTR_MAX_MIREDS))
 
     value = min(max_mireds, current + 50)
     await hass.services.async_call(
-        entity.domain,
+        domain,
         SERVICE_TURN_ON,
         {ATTR_ENTITY_ID: entity.entity_id, light.ATTR_COLOR_TEMP: value},
         blocking=False,
@@ -244,12 +259,15 @@ async def async_api_decrease_color_temp(hass, config, directive, context):
 async def async_api_increase_color_temp(hass, config, directive, context):
     """Process an increase color temperature request."""
     entity = directive.entity
+    domain = entity.domain
+    if domain == group.DOMAIN:
+        domain = ha.DOMAIN
     current = int(entity.attributes.get(light.ATTR_COLOR_TEMP))
     min_mireds = int(entity.attributes.get(light.ATTR_MIN_MIREDS))
 
     value = max(min_mireds, current - 50)
     await hass.services.async_call(
-        entity.domain,
+        domain,
         SERVICE_TURN_ON,
         {ATTR_ENTITY_ID: entity.entity_id, light.ATTR_COLOR_TEMP: value},
         blocking=False,
@@ -311,6 +329,9 @@ async def async_api_deactivate(hass, config, directive, context):
 async def async_api_set_percentage(hass, config, directive, context):
     """Process a set percentage request."""
     entity = directive.entity
+    domain = entity.domain
+    if domain == group.DOMAIN:
+        domain = ha.DOMAIN
     percentage = int(directive.payload["percentage"])
     service = None
     data = {ATTR_ENTITY_ID: entity.entity_id}
@@ -332,7 +353,7 @@ async def async_api_set_percentage(hass, config, directive, context):
         data[cover.ATTR_POSITION] = percentage
 
     await hass.services.async_call(
-        entity.domain, service, data, blocking=False, context=context
+        domain, service, data, blocking=False, context=context
     )
 
     return directive.response()
@@ -342,6 +363,9 @@ async def async_api_set_percentage(hass, config, directive, context):
 async def async_api_adjust_percentage(hass, config, directive, context):
     """Process an adjust percentage request."""
     entity = directive.entity
+    domain = entity.domain
+    if domain == group.DOMAIN:
+        domain = ha.DOMAIN
     percentage_delta = int(directive.payload["percentageDelta"])
     service = None
     data = {ATTR_ENTITY_ID: entity.entity_id}
@@ -380,7 +404,7 @@ async def async_api_adjust_percentage(hass, config, directive, context):
         data[cover.ATTR_POSITION] = max(0, percentage_delta + current)
 
     await hass.services.async_call(
-        entity.domain, service, data, blocking=False, context=context
+        domain, service, data, blocking=False, context=context
     )
 
     return directive.response()

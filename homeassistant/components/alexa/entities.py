@@ -13,6 +13,7 @@ from homeassistant.const import (
 )
 from homeassistant.util.decorator import Registry
 from homeassistant.components.climate import const as climate
+from homeassistant.components.group.light import LightGroup
 from homeassistant.components import (
     alert,
     automation,
@@ -222,7 +223,6 @@ def async_get_entities(hass, config) -> List[AlexaEntity]:
 
 @ENTITY_ADAPTERS.register(alert.DOMAIN)
 @ENTITY_ADAPTERS.register(automation.DOMAIN)
-@ENTITY_ADAPTERS.register(group.DOMAIN)
 @ENTITY_ADAPTERS.register(input_boolean.DOMAIN)
 class GenericCapabilities(AlexaEntity):
     """A generic, on/off device.
@@ -240,6 +240,37 @@ class GenericCapabilities(AlexaEntity):
             AlexaPowerController(self.entity),
             AlexaEndpointHealth(self.hass, self.entity),
         ]
+
+
+@ENTITY_ADAPTERS.register(group.DOMAIN)
+class GroupCapabilities(AlexaEntity):
+    """A group of entities.
+
+    Provides the capability if any entity supports it.
+    """
+
+    def default_display_categories(self):
+        """Return the display categories for this entity."""
+        if isinstance(self.entity, LightGroup):
+            return [DisplayCategory.LIGHT]
+        else:
+            return [DisplayCategory.OTHER]
+
+    def interfaces(self):
+        """Yield the supported interfaces."""
+
+        yield AlexaPowerController(self.entity)
+        yield AlexaEndpointHealth(self.hass, self.entity)
+
+        if isinstance(self.entity, LightGroup):
+            supported = self.entity.supported_features()
+
+            if supported & light.SUPPORT_BRIGHTNESS:
+                yield AlexaBrightnessController(self.entity)
+            if supported & light.SUPPORT_COLOR:
+                yield AlexaColorController(self.entity)
+            if supported & light.SUPPORT_COLOR_TEMP:
+                yield AlexaColorTemperatureController(self.entity)
 
 
 @ENTITY_ADAPTERS.register(switch.DOMAIN)
